@@ -1,1 +1,1 @@
-A simple Assembly Program that prints "Hello"
+An Assembly program that prints "Hello"
