@@ -1,0 +1,57 @@
+/* === FILE: boot.asm === */
+[org 0x7C00]          ; Set origin for BIOS boot sector
+mov ah, 0x0E          ; BIOS teletype output
+mov al, 'H'
+int 0x10              ; Print 'H'
+mov al, 'i'
+int 0x10              ; Print 'i'
+
+jmp $                 ; Infinite loop
+
+times 510 - ($ - $$) db 0
+
+dw 0xAA55             ; Boot sector signature
+
+/* === FILE: kernel.c === */
+void main() {
+    char *video_memory = (char *)0xb8000;
+    const char *msg = "Hello from kernel!";
+
+    for (int i = 0; msg[i] != '\0'; i++) {
+        video_memory[i * 2] = msg[i];      // Character
+        video_memory[i * 2 + 1] = 0x07;    // Attribute byte (white on black)
+    }
+
+    while (1); // Halt
+}
+
+/* === FILE: linker.ld === */
+OUTPUT_FORMAT(elf32-i386)
+ENTRY(main)
+SECTIONS
+{
+    . = 0x1000;
+    .text : { *(.text) }
+    .data : { *(.data) }
+    .bss  : { *(.bss)  }
+}
+
+all: os-image
+
+boot.bin: boot.asm
+	nasm -f bin boot.asm -o boot.bin
+
+kernel.o: kernel.c
+	gcc -m32 -ffreestanding -c kernel.c -o kernel.o
+
+kernel.bin: kernel.o linker.ld
+	ld -m elf_i386 -T linker.ld -o kernel.bin kernel.o
+
+os-image: boot.bin kernel.bin
+	cat boot.bin kernel.bin > os-image
+
+run: os-image
+	qemu-system-i386 -drive format=raw,file=os-image
+
+clean:
+	rm -f *.bin *.o os-image
